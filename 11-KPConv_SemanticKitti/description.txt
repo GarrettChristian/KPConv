@@ -1,0 +1,6 @@
+method name: KPConv
+method description: Fully convolutional network operating directly on points
+project url: https://github.com/HuguesTHOMAS/KPConv
+publication url: https://arxiv.org/abs/1904.08889
+bibtex: @article{thomas2019KPConv,     Author = {Thomas, Hugues and Qi, Charles R. and Deschaud, Jean-Emmanuel and Marcotegui, Beatriz     and Goulette, Fran{\c{c}}ois and Guibas, Leonidas J.},     Title = {KPConv: Flexible and Deformable Convolution for Point Clouds},     Journal = {Proceedings of the IEEE International Conference on Computer Vision},     Year = {2019} }
+organization or affiliation: Mines Paristech

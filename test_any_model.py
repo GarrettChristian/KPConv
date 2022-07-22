@@ -39,6 +39,8 @@ from datasets.S3DIS import S3DISDataset
 from datasets.Scannet import ScannetDataset
 from datasets.NPM3D import NPM3DDataset
 from datasets.Semantic3D import Semantic3DDataset
+from datasets.SemanticKitti import SemanticKittiDataset
+
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -61,7 +63,7 @@ def test_caller(path, step_ind, on_val):
     os.environ['CUDA_VISIBLE_DEVICES'] = GPU_ID
 
     # Disable warnings
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
     ###########################
     # Load the model parameters
@@ -79,8 +81,12 @@ def test_caller(path, step_ind, on_val):
 
     #config.augment_noise = 0.0001
     #config.augment_color = 1.0
-    config.validation_size = 500
+    config.validation_size = 200
     #config.batch_num = 10
+
+    #config.in_radius = 10.0
+    #config.max_in_points = 20000
+    #config.batch_num = 15
 
     ##############
     # Prepare Data
@@ -104,19 +110,27 @@ def test_caller(path, step_ind, on_val):
         dataset = NPM3DDataset(config.input_threads, load_test=(not on_val))
     elif config.dataset == 'Semantic3D':
         dataset = Semantic3DDataset(config.input_threads)
+    elif config.dataset == 'SemanticKitti':
+        dataset = SemanticKittiDataset(config.input_threads, n_frames=config.n_frames)
     else:
         raise ValueError('Unsupported dataset : ' + config.dataset)
 
     # Create subsample clouds of the models
-    dl0 = config.first_subsampling_dl
-    dataset.load_subsampled_clouds(dl0)
+    if config.dataset == 'SemanticKitti':
+        dataset.load_calib_poses(config.n_frames)
+    else:
+        dl0 = config.first_subsampling_dl
+        dataset.load_subsampled_clouds(dl0)
 
     # Initialize input pipelines
+    """
     if on_val:
         dataset.init_input_pipeline(config)
     else:
         dataset.init_test_input_pipeline(config)
+    """
 
+    dataset.init_test_input_pipeline(config, on_val=on_val)
 
     ##############
     # Define Model
@@ -137,6 +151,8 @@ def test_caller(path, step_ind, on_val):
     elif config.dataset.startswith('ModelNet40'):
         model = KernelPointCNN(dataset.flat_inputs, config)
     elif config.dataset.startswith('Semantic3D'):
+        model = KernelPointFCNN(dataset.flat_inputs, config)
+    elif config.dataset.startswith('SemanticKitti'):
         model = KernelPointFCNN(dataset.flat_inputs, config)
     else:
         raise ValueError('Unsupported dataset : ' + config.dataset)
@@ -181,6 +197,8 @@ def test_caller(path, step_ind, on_val):
             tester.test_cloud_segmentation_on_val(model, dataset)
         else:
             tester.test_cloud_segmentation(model, dataset)
+    elif config.dataset.startswith('SemanticKitti'):
+            tester.test_SLAM_segmentation(model, dataset, on_val=on_val)
     elif config.dataset.startswith('NPM3D'):
         if on_val:
             tester.test_cloud_segmentation_on_val(model, dataset)
@@ -223,7 +241,14 @@ if __name__ == '__main__':
     #       > 'results/Log_YYYY-MM-DD_HH-MM-SS': Directly provide the path of a trained model
     #
 
-    chosen_log = 'last_ModelNet40'
+    #chosen_log = 'results/Log_2019-03-19_19-14-24'
+    #chosen_log = 'last_ModelNet40'
+
+    #chosen_log = 'results/Log_2019-09-06_15-30-51'
+
+    #chosen_log = 'results/Log_pretrained_S3DIS'
+
+    chosen_log = 'results/Log_2019-11-07_19-28-12'
 
     #
     #   You can also choose the index of the snapshot to load (last by default)
@@ -232,10 +257,10 @@ if __name__ == '__main__':
     chosen_snapshot = -1
 
     #
-    #   Eventually, you can choose to test your model on the validation set
+    #   Eventually, you can test your model on the validation set
     #
 
-    on_val = False
+    on_val = True
 
     #
     #   If you want to modify certain parameters in the Config class, for example, to stop augmenting the input data,
@@ -251,7 +276,8 @@ if __name__ == '__main__':
                     'last_S3DIS',
                     'last_Scannet',
                     'last_NPM3D',
-                    'last_Semantic3D']
+                    'last_Semantic3D',
+                    'last_SemanticKitti']
 
     # Automatically retrieve the last trained model
     if chosen_log in handled_logs:
@@ -264,11 +290,13 @@ if __name__ == '__main__':
 
         # Find the last log of asked dataset
         for log in logs[::-1]:
-            log_config = Config()
-            log_config.load(log)
-            if log_config.dataset.startswith(test_dataset):
-                chosen_log = log
-                break
+
+            if ('val_IoUs.txt' in [f for f in os.listdir(log)]) or ('val_confs.txt' in [f for f in os.listdir(log)]):
+                log_config = Config()
+                log_config.load(log)
+                if log_config.dataset.startswith(test_dataset):
+                    chosen_log = log
+                    break
 
         if chosen_log in handled_logs:
             raise ValueError('No log of the dataset "' + test_dataset + '" found')
@@ -279,6 +307,7 @@ if __name__ == '__main__':
 
     # Let's go
     test_caller(chosen_log, chosen_snapshot, on_val)
+
 
 
 
